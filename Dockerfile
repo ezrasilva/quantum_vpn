@@ -32,8 +32,11 @@ RUN git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboq
     && ninja install \
     && ldconfig
 
+# Configurar variáveis de ambiente para liboqs
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
 # 3. Instalar liboqs-python (Wrapper Python Oficial)
-# <--- A CORREÇÃO ESTÁ AQUI
 WORKDIR /opt
 RUN git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs-python.git \
     && cd liboqs-python \

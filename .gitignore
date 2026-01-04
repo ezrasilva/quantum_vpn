@@ -1,1 +1,5 @@
-scripts/certs/*.key
+scripts/certs/
+metrics/resultados_benchmark*
+resultados_benchmark*
+**/__pycache__/
+figura*

@@ -3,13 +3,19 @@ import json
 import sys
 import os
 import base64
+import urllib3
+
+# Suppress SSL warnings when verification is disabled
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class QuKayDeeClient:
     def __init__(self, kme_url, cert_path, key_path, ca_cert_path):
         self.base_url = kme_url.rstrip('/')
         self.cert = (cert_path, key_path)
-        self.verify = ca_cert_path
+        # Disable SSL verification for testing (NOT SECURE - use only for development)
+        self.verify = False
         print(f"   [QuKayDee] Cliente iniciado para: {self.base_url}")
+        print(f"   [AVISO] Verificação SSL DESABILITADA (apenas para testes)")
 
     def get_enc_key(self, peer_sae_id, number=1):
         """
@@ -63,9 +69,7 @@ class QuKayDeeClient:
         Bob pede a chave específica pelo ID (POST /dec_keys)
         """
         url = f"{self.base_url}/api/v1/keys/{peer_sae_id}/dec_keys"
-        
-        # --- CORREÇÃO AQUI ---
-        # O QuKayDee exige 'key_IDs' e 'key_ID' (Case Sensitive)
+
         payload = {
             "key_IDs": [{"key_ID": key_id}]
         }

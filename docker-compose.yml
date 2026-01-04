@@ -7,13 +7,15 @@ services:
     networks:
       rede_a:
         ipv4_address: 10.100.1.10
+      rede_b:
+        ipv4_address: 10.100.2.11
     volumes:
       - ./alice/swanctl.conf:/etc/swanctl/swanctl.conf
       # EXPONDO O SOCKET PARA O HOST (Para o orquestrador montar)
       - type: bind
         source: ./sockets/alice
         target: /var/run
-    command: /usr/lib/ipsec/charon
+    command: sh -c "tc qdisc add dev eth0 root netem delay 10ms 2ms && /usr/lib/ipsec/charon"
 
   # --- VPN BOB ---
   bob:
@@ -21,6 +23,8 @@ services:
     container_name: bob
     cap_add: [NET_ADMIN, SYS_MODULE]
     networks:
+      rede_a:
+        ipv4_address: 10.100.1.11
       rede_b:
         ipv4_address: 10.100.2.10
     volumes:
@@ -29,7 +33,7 @@ services:
       - type: bind
         source: ./sockets/bob
         target: /var/run
-    command: /usr/lib/ipsec/charon
+    command: sh -c "tc qdisc add dev eth0 root netem delay 10ms 2ms && /usr/lib/ipsec/charon"
 
   # --- ORQUESTRADOR (O CÉREBRO) ---
   orchestrator:
@@ -51,13 +55,15 @@ services:
     command: tail -f /dev/null
 
   gateway:
-    image: alpine
+    image: ubuntu:22.04
     container_name: gateway
     cap_add:
       - NET_ADMIN
+      - SYS_ADMIN
     sysctls:
       net.ipv4.ip_forward: "1"
-    command: sh -c "apk add --no-cache iproute2 iptables && tail -f /dev/null"
+      net.ipv4.conf.all.proxy_arp: "1"
+    command: sh -c "apt-get update && apt-get install -y iproute2 iptables iputils-ping iproute2-tc && tc qdisc add dev eth0 root netem delay 20ms 5ms && tc qdisc add dev eth1 root netem delay 20ms 5ms && sleep infinity"
     networks:
       rede_a:
         ipv4_address: 10.100.1.254
@@ -71,8 +77,19 @@ networks:
       config:
         - subnet: 10.5.0.0/24
   rede_a:
-    external: true
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+    ipam:
+      config:
+        - subnet: 10.100.1.0/24
   rede_b:
-    external: true
-  rede_d:
-    external: true
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+    ipam:
+      config:
+        - subnet: 10.100.2.0/24
+ 
