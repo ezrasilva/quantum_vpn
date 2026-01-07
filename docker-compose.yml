@@ -11,11 +11,9 @@ services:
         ipv4_address: 10.100.2.11
     volumes:
       - ./alice/swanctl.conf:/etc/swanctl/swanctl.conf
-      # EXPONDO O SOCKET PARA O HOST (Para o orquestrador montar)
-      - type: bind
-        source: ./sockets/alice
-        target: /var/run
-    command: sh -c "tc qdisc add dev eth0 root netem delay 10ms 2ms && /usr/lib/ipsec/charon"
+      - ./scripts:/scripts  # Para acessar o vpn_agent.py
+
+    entrypoint: ["/entrypoint.sh"]
 
   # --- VPN BOB ---
   bob:
@@ -29,12 +27,8 @@ services:
         ipv4_address: 10.100.2.10
     volumes:
       - ./bob/swanctl.conf:/etc/swanctl/swanctl.conf
-      # EXPONDO O SOCKET PARA O HOST
-      - type: bind
-        source: ./sockets/bob
-        target: /var/run
-    command: sh -c "tc qdisc add dev eth0 root netem delay 10ms 2ms && /usr/lib/ipsec/charon"
-
+      - ./scripts:/scripts
+    entrypoint: ["/entrypoint.sh"]
   # --- ORQUESTRADOR (O CÉREBRO) ---
   orchestrator:
     build: .  # Usa a mesma imagem com Python + LibOQS + VICI
@@ -42,15 +36,12 @@ services:
     networks:
       vpc_qkd:
         ipv4_address: 10.5.0.99
+      rede_a:
+        ipv4_address: 10.100.1.40
+      rede_b:
+        ipv4_address: 10.100.2.40
     volumes:
       - ./scripts:/scripts
-      # MONTA OS SOCKETS DOS NÓS AQUI DENTRO
-      - type: bind
-        source: ./sockets/alice
-        target: /sockets/alice  # Vai acessar o socket da Alice aqui
-      - type: bind
-        source: ./sockets/bob
-        target: /sockets/bob    # Vai acessar o socket do Bob aqui
     # Mantém rodando para entrarmos depois
     command: tail -f /dev/null
 

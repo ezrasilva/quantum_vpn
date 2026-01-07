@@ -3,3 +3,7 @@ metrics/resultados_benchmark*
 resultados_benchmark*
 **/__pycache__/
 figura*
+scripts/orchestrator_auth.key
+scripts/orchestrator_auth.pub
+sockets/bob/charon.pid
+sockets/bob/charon.pid

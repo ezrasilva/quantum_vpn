@@ -22,19 +22,22 @@ RUN apt-get update && apt-get install -y \
     ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Compilar e Instalar liboqs (Biblioteca C)
+# 2. Compilar e instalar liboqs (Biblioteca C)
 WORKDIR /opt
 RUN git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs.git \
     && cd liboqs \
     && mkdir build && cd build \
-    && cmake -GNinja -DOQS_USE_OPENSSL=1 -DCMAKE_INSTALL_PREFIX=/usr/local .. \
+    && cmake -GNinja -DBUILD_SHARED_LIBS=ON -DOQS_USE_OPENSSL=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. \
     && ninja \
     && ninja install \
+    && ln -sf /usr/local/lib/liboqs.so /usr/lib/liboqs.so \
+    && ln -sf /usr/local/lib/liboqs.so.0 /usr/lib/liboqs.so.0 \
     && ldconfig
 
 # Configurar variáveis de ambiente para liboqs
-ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+ENV LD_LIBRARY_PATH="/usr/local/lib"
+ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+RUN ldconfig
 
 # 3. Instalar liboqs-python (Wrapper Python Oficial)
 WORKDIR /opt
@@ -43,7 +46,10 @@ RUN git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboq
     && pip3 install .
 
 # 4. Instalar outras libs Python (Cryptography e VICI)
-RUN pip3 install cryptography vici
+RUN pip3 install --no-cache-dir cryptography vici flask requests
+
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # 5. Voltar para o diretório padrão e rodar o Charon
 WORKDIR /
