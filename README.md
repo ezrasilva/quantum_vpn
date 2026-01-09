@@ -104,8 +104,8 @@ PQC_Secret (ML-KEM) + QKD_Key → HKDF-SHA256 → Final_IPsec_Key
 | Signature | ML-DSA-65 | NIST Level 3 |
 | KEM | ML-KEM-768 | NIST Level 3 |
 | KDF | HKDF-SHA256 | Classical |
-| IPsec ESP | AES-128-GCM | 128-bit |
-| IPsec IKE | AES-128-SHA256 | 128-bit |
+| IPsec ESP | AES-256-GCM | 256-bit (128-bit quantum) |
+| IPsec IKE | AES-256-SHA256 | 256-bit (128-bit quantum) |
 
 ### Optional QKD Integration
 
@@ -287,7 +287,6 @@ networks:
 - Side-channel attacks on cryptographic implementations
 - Denial-of-Service through resource exhaustion
 - Compromise of SDN controller (single point of failure)
-- Classical security of IPsec ESP (AES-128-GCM)
 
 ## Performance Considerations
 
