@@ -18,5 +18,8 @@ if ! kill -0 $CHARON_PID > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "[BOOT] Charon rodando (PID $CHARON_PID). Iniciando Agente VPN..."
+echo "[BOOT] Charon rodando (PID $CHARON_PID). Carregando configurações swanctl..."
+sleep 1
+swanctl --load-all
+echo "[BOOT] Configurações carregadas. Iniciando Agente VPN..."
 python3 /scripts/vpn_agent.py

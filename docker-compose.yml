@@ -29,6 +29,37 @@ services:
       - ./bob/swanctl.conf:/etc/swanctl/swanctl.conf
       - ./scripts:/scripts
     entrypoint: ["/entrypoint.sh"]
+
+  # --- VPN CAROL ---
+  carol:
+    build: .
+    container_name: carol
+    cap_add: [NET_ADMIN, SYS_MODULE]
+    networks:
+      rede_a:
+        ipv4_address: 10.100.1.12
+      rede_b:
+        ipv4_address: 10.100.2.12
+    volumes:
+      - ./carol/swanctl.conf:/etc/swanctl/swanctl.conf
+      - ./scripts:/scripts
+    entrypoint: ["/entrypoint.sh"]
+
+  # --- VPN DAVE ---
+  dave:
+    build: .
+    container_name: dave
+    cap_add: [NET_ADMIN, SYS_MODULE]
+    networks:
+      rede_a:
+        ipv4_address: 10.100.1.13
+      rede_b:
+        ipv4_address: 10.100.2.13
+    volumes:
+      - ./dave/swanctl.conf:/etc/swanctl/swanctl.conf
+      - ./scripts:/scripts
+    entrypoint: ["/entrypoint.sh"]
+
   # --- ORQUESTRADOR (O CÉREBRO) ---
   orchestrator:
     build: .  # Usa a mesma imagem com Python + LibOQS + VICI
@@ -42,24 +73,9 @@ services:
         ipv4_address: 10.100.2.40
     volumes:
       - ./scripts:/scripts
-    # Mantém rodando para entrarmos depois
-    command: tail -f /dev/null
+    # Executa o controlador SDN
+    entrypoint: ["python3", "/scripts/sdn_controller_multi_node.py"]
 
-  gateway:
-    image: ubuntu:22.04
-    container_name: gateway
-    cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-    sysctls:
-      net.ipv4.ip_forward: "1"
-      net.ipv4.conf.all.proxy_arp: "1"
-    command: sh -c "apt-get update && apt-get install -y iproute2 iptables iputils-ping iproute2-tc && tc qdisc add dev eth0 root netem delay 20ms 5ms && tc qdisc add dev eth1 root netem delay 20ms 5ms && sleep infinity"
-    networks:
-      rede_a:
-        ipv4_address: 10.100.1.254
-      rede_b:
-        ipv4_address: 10.100.2.254
 
 networks:
   vpc_qkd:

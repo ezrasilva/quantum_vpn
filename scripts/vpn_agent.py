@@ -7,14 +7,23 @@ import subprocess
 import oqs
 import base64
 import os
+import json
+import sys
+from hashlib import sha256
 
 app = Flask(__name__)
 VICI_SOCKET = "/var/run/charon.vici"
 AUTH_ALGO = "ML-DSA-65"
+KEM_ALGO = "ML-KEM-768"
 PUB_KEY_PATH = "/scripts/orchestrator_auth.pub"
+MAX_MESSAGE_AGE_SECONDS = 30
 
 logging.basicConfig(level=logging.INFO, format='[AGENT] %(asctime)s - %(message)s')
 logger = logging.getLogger("VPN-Agent")
+
+# Cache de nonces usados (anti-replay)
+USED_NONCES = set()
+MAX_NONCE_CACHE = 10000
 
 # --- CARREGAR CHAVE PÚBLICA DA AUTORIDADE ---
 try:
@@ -24,6 +33,17 @@ try:
 except Exception as e:
     logger.critical(f"ERRO FATAL: Nao foi possivel ler a chave publica: {e}")
     sys.exit(1)
+
+# --- GERAR PAR DE CHAVES KEM PARA DESCRIPTOGRAFIA ---
+try:
+    kem = oqs.KeyEncapsulation(KEM_ALGO)
+    KEM_PUBLIC_KEY = kem.generate_keypair()
+    KEM_SECRET_KEY = kem.export_secret_key()
+    logger.info(f"Par de chaves {KEM_ALGO} gerado para descriptografia de envelope.")
+except Exception as e:
+    logger.warning(f"Falha ao gerar chaves KEM: {e}. Criptografia de envelope desabilitada.")
+    KEM_PUBLIC_KEY = None
+    KEM_SECRET_KEY = None
 
 def verify_signature(payload_bytes, signature_b64):
     """Verifica se o payload foi assinado pelo Orquestrador"""
@@ -35,23 +55,106 @@ def verify_signature(payload_bytes, signature_b64):
         logger.error(f"Erro na verificacao da assinatura: {e}")
         return False
 
-# --- MIDDLEWARE DE AUTENTICAÇÃO ---
-@app.before_request
-def authenticate_request():
-    # Ignora validação para healthcheck
-    if request.path == '/health':
-        return
+def decrypt_payload(encrypted_bytes, kem_ciphertext_b64):
+    """Descriptografa payload usando ML-KEM"""
+    try:
+        if not KEM_SECRET_KEY:
+            logger.warning("KEM não disponível. Assumindo payload não criptografado.")
+            return encrypted_bytes
         
-    signature_header = request.headers.get('X-PQC-Signature')
-    if not signature_header:
-        return jsonify({"error": "Autenticacao PQC obrigatoria"}), 401
+        kem_ciphertext = base64.b64decode(kem_ciphertext_b64)
+        
+        with oqs.KeyEncapsulation(KEM_ALGO, secret_key=KEM_SECRET_KEY) as kem_server:
+            shared_secret = kem_server.decap_secret(kem_ciphertext)
+            
+            # Descriptografar (XOR reverso)
+            key = sha256(shared_secret).digest()
+            decrypted = bytes(a ^ b for a, b in zip(encrypted_bytes, (key * ((len(encrypted_bytes) // 32) + 1))[:len(encrypted_bytes)]))
+            return decrypted
+    except Exception as e:
+        logger.error(f"Erro na descriptografia KEM: {e}")
+        return None
+
+def check_replay_protection(payload_dict):
+    """Verifica timestamp e nonce para prevenir replay attacks"""
+    try:
+        timestamp = payload_dict.get('_timestamp')
+        nonce = payload_dict.get('_nonce')
+        
+        if not timestamp or not nonce:
+            logger.warning("Mensagem sem timestamp/nonce. Possível ataque de replay.")
+            return False
+        
+        # Verificar idade da mensagem
+        age = int(time.time()) - timestamp
+        if age > MAX_MESSAGE_AGE_SECONDS or age < -5:  # -5 para tolerar pequeno clock skew
+            logger.warning(f"Mensagem expirada ou com timestamp futuro. Idade: {age}s")
+            return False
+        
+        # Verificar nonce duplicado
+        if nonce in USED_NONCES:
+            logger.error(f"REPLAY ATTACK DETECTADO! Nonce já foi usado: {nonce[:16]}...")
+            return False
+        
+        # Adicionar nonce ao cache
+        USED_NONCES.add(nonce)
+        
+        # Limpar cache se crescer muito
+        if len(USED_NONCES) > MAX_NONCE_CACHE:
+            USED_NONCES.clear()
+        
+        return True
+    except Exception as e:
+        logger.error(f"Erro na verificação de replay: {e}")
+        return False
+
+# --- MIDDLEWARE DE AUTENTICAÇÃO E DESCRIPTOGRAFIA ---
+@app.before_request
+def authenticate_and_decrypt():
+    # Ignora validação para rotas públicas
+    if request.path in ['/health', '/public-key']:
+        return
     
-    # O payload exato (bytes) que foi assinado
-    payload = request.get_data()
-    
-    if not verify_signature(payload, signature_header):
-        logger.warning(f"Tentativa de comando NAO AUTORIZADO de {request.remote_addr}")
-        return jsonify({"error": "Assinatura Digital Invalida"}), 403
+    try:
+        signature_header = request.headers.get('X-PQC-Signature')
+        if not signature_header:
+            return jsonify({"error": "Autenticacao PQC obrigatoria"}), 401
+        
+        # 1. Obter payload (pode estar criptografado)
+        encrypted_payload = request.get_data()
+        
+        # 2. Verificar assinatura no payload criptografado
+        if not verify_signature(encrypted_payload, signature_header):
+            logger.warning(f"Tentativa de comando NAO AUTORIZADO de {request.remote_addr}")
+            return jsonify({"error": "Assinatura Digital Invalida"}), 403
+        
+        # 3. Descriptografar se necessário
+        payload_bytes = encrypted_payload
+        if request.headers.get('X-KEM-Encrypted') == 'true':
+            kem_ct_header = request.headers.get('X-KEM-Ciphertext')
+            if not kem_ct_header:
+                return jsonify({"error": "KEM ciphertext ausente"}), 400
+            
+            payload_bytes = decrypt_payload(encrypted_payload, kem_ct_header)
+            if payload_bytes is None:
+                return jsonify({"error": "Falha na descriptografia"}), 400
+        
+        # 4. Parsear JSON
+        try:
+            payload_dict = json.loads(payload_bytes.decode('utf-8'))
+        except:
+            return jsonify({"error": "JSON inválido"}), 400
+        
+        # 5. Verificar proteção contra replay
+        if not check_replay_protection(payload_dict):
+            return jsonify({"error": "Replay attack detectado ou mensagem expirada"}), 403
+        
+        # 6. Armazenar payload descriptografado para as rotas
+        request.decrypted_json = payload_dict
+        
+    except Exception as e:
+        logger.error(f"Erro no middleware de segurança: {e}")
+        return jsonify({"error": "Erro na validação de segurança"}), 500
 
 # --- FUNÇÕES VICI (Mantivemos a lógica, removemos a repetição) ---
 def get_vici_session():
@@ -71,9 +174,20 @@ def initialize_vpn():
 
 # --- ROTAS (Agora protegidas pelo @before_request) ---
 
+@app.route('/public-key', methods=['GET'])
+def get_public_key():
+    """Expõe a chave pública KEM para o orquestrador"""
+    if KEM_PUBLIC_KEY:
+        return jsonify({
+            "kem_public_key": base64.b64encode(KEM_PUBLIC_KEY).decode('utf-8'),
+            "algorithm": KEM_ALGO
+        }), 200
+    else:
+        return jsonify({"error": "KEM não disponível"}), 503
+
 @app.route('/inject-key', methods=['POST'])
 def inject_key():
-    data = request.json
+    data = request.decrypted_json  # Usar payload descriptografado
     try:
         session = get_vici_session()
         if not session: return jsonify({"error": "VICI off"}), 500
@@ -93,7 +207,7 @@ def inject_key():
 
 @app.route('/terminate', methods=['POST'])
 def terminate():
-    data = request.json
+    data = request.decrypted_json
     try:
         session = get_vici_session()
         if not session: return jsonify({"error": "VICI off"}), 500
@@ -104,7 +218,7 @@ def terminate():
 
 @app.route('/rekey', methods=['POST'])
 def rekey():
-    data = request.json
+    data = request.decrypted_json
     try:
         session = get_vici_session()
         if not session: return jsonify({"error": "VICI off"}), 500
@@ -115,7 +229,7 @@ def rekey():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "online", "auth": "ML-DSA-65"}), 200
+    return jsonify({"status": "online", "auth": "ML-DSA-65", "encryption": KEM_ALGO if KEM_PUBLIC_KEY else "disabled"}), 200
 
 if __name__ == '__main__':
     if initialize_vpn():
