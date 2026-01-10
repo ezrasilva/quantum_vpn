@@ -123,7 +123,7 @@ Segredo_PQC (ML-KEM) + Chave_QKD → HKDF-SHA256 → Chave_IPsec_Final
 
 ### Integração QKD
 
-- **QuKayDee**: Compatível com ETSI GS QKD 004 (Key Management API)
+- **QuKayDee**: Compatível com ETSI GS QKD 014 (Key Management API)
 - **Autenticação**: TLS mútuo com certificados SAE
 - **Tamanho de Chave**: Chaves quânticas de 256-bit
 - **KMEs**: kme-1 (alice), kme-2 (bob), kme-3 (carol), kme-4 (dave)
