@@ -1,12 +1,12 @@
 import hashlib
 import hmac
+import secrets
 
 def hkdf_extract(salt, input_key_material):
     """
     HKDF-Extract: Extrai uma chave pseudo-aleatória (PRK) do material de entrada.
     """
-    if salt is None:
-        salt = b'\x00' * hashlib.sha256().digest_size
+    
     return hmac.new(salt, input_key_material, hashlib.sha256).digest()
 
 def hkdf_expand(pseudo_random_key, info, length=32):
@@ -27,13 +27,12 @@ def mix_keys(pqc_secret, qkd_key):
     Combina a chave PQC (Kyber) e a chave QKD usando HKDF-SHA256.
     Retorna uma chave de 32 bytes (256 bits) pronta para o AES.
     """
-    # Concatena as duas chaves
+
     input_key_material = pqc_secret + qkd_key
+    salt = secrets.token_bytes(32) 
     
-    # 1. Extração
-    prk = hkdf_extract(None, input_key_material)
+    prk = hkdf_extract(salt, input_key_material)
     
-    # 2. Expansão (com um contexto 'info' para garantir unicidade)
     final_key = hkdf_expand(prk, b"SDQC-HYBRID-KEY", 32)
     
     return final_key

@@ -5,14 +5,13 @@ import os
 import base64
 import urllib3
 
-# Suppress SSL warnings when verification is disabled
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class QuKayDeeClient:
     def __init__(self, kme_url, cert_path, key_path, ca_cert_path):
         self.base_url = kme_url.rstrip('/')
         self.cert = (cert_path, key_path)
-        # Disable SSL verification for testing (NOT SECURE - use only for development)
+       
         self.verify = False
         print(f"   [QuKayDee] Cliente iniciado para: {self.base_url}")
         print(f"   [AVISO] Verificação SSL DESABILITADA (apenas para testes)")
@@ -43,10 +42,9 @@ class QuKayDeeClient:
             
             clean_keys = []
             for k in keys_list:
-                # Tenta ler 'key_ID' (Padrão QuKayDee) ou 'key_id' (Padrão Genérico)
+                
                 k_id = k.get('key_ID') or k.get('key_id')
                 
-                # Descodifica Base64
                 k_val_b64 = k['key']
                 k_val_bytes = base64.b64decode(k_val_b64)
                 
@@ -90,7 +88,7 @@ class QuKayDeeClient:
             if not keys_list:
                 raise Exception("Chave não retornada pelo servidor")
 
-            # Descodifica Base64
+            
             k_val_b64 = keys_list[0]['key']
             return base64.b64decode(k_val_b64)
 

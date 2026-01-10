@@ -1,7 +1,6 @@
 import oqs
 import binascii
 
-# Algoritmo de Assinatura Pós-Quântica (NIST Standard)
 ALGO = "ML-DSA-65"
 
 def main():
@@ -10,11 +9,9 @@ def main():
         public_key = sig.generate_keypair()
         private_key = sig.export_secret_key()
         
-        # Salva para o Orquestrador usar
         with open("/scripts/orchestrator_auth.key", "wb") as f:
             f.write(private_key)
             
-        # Salva para os Agentes (Alice/Bob) usarem
         with open("/scripts/orchestrator_auth.pub", "wb") as f:
             f.write(public_key)
             

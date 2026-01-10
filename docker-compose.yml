@@ -60,9 +60,9 @@ services:
       - ./scripts:/scripts
     entrypoint: ["/entrypoint.sh"]
 
-  # --- ORQUESTRADOR (O CÉREBRO) ---
+  # --- ORQUESTRADOR ---
   orchestrator:
-    build: .  # Usa a mesma imagem com Python + LibOQS + VICI
+    build: .  
     container_name: orchestrator
     networks:
       vpc_qkd:
@@ -73,7 +73,6 @@ services:
         ipv4_address: 10.100.2.40
     volumes:
       - ./scripts:/scripts
-    # Executa o controlador SDN
     entrypoint: ["python3", "/scripts/sdn_controller_multi_node.py"]
 
 

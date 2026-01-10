@@ -38,25 +38,23 @@ PRIV_KEY_PATH = "/scripts/orchestrator_auth.key"
 HTTP_TIMEOUT = 10
 
 # --- CONFIGURAÇÕES HÍBRIDAS (PQC + QKD) ---
-USE_HYBRID_MODE = True  # Ativar/desativar modo híbrido
+# QuKayDee é OBRIGATÓRIO. Fallback apenas para PQC puro (nunca RNG clássico).
 PQC_ALGO = "ML-KEM-768"  # Algoritmo PQC pós-quântico
 KEM_ALGO = "ML-KEM-768"  # Algoritmo para criptografia de envelope
 
 # Tempo máximo de validade de uma mensagem (anti-replay)
 MAX_MESSAGE_AGE_SECONDS = 30
 
-# QuKayDee KME URLs (opcional - comentar se não disponível)
+# QuKayDee KME URLs (OBRIGATÓRIO)
 ACCOUNT_ID = "2992"
 URL_KME_ALICE = f"https://kme-1.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
 URL_KME_BOB   = f"https://kme-2.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
 URL_KME_CAROL = f"https://kme-3.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
 URL_KME_DAVE  = f"https://kme-4.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
 
-# Caminhos de certificados (opcional)
 CERT_DIR = "/scripts/certs"
 CA_CERT  = f"{CERT_DIR}/account-{ACCOUNT_ID}-server-ca-qukaydee-com.crt"
 
-# Definir todas as conexões da topologia (apenas pares específicos)
 CONNECTIONS = {
     'alice-bob': {
         'nodes': ('alice', 'bob'),
@@ -77,7 +75,7 @@ CONNECTIONS = {
 logging.basicConfig(level=logging.INFO, format='[SDN-Multi] %(asctime)s - %(message)s')
 logger = logging.getLogger("SDN-Multi")
 
-# --- CARREGAR CHAVES CRIPTOGRÁFICAS ---
+
 try:
     with open(PRIV_KEY_PATH, "rb") as f:
         SIGNING_KEY = f.read()
@@ -103,14 +101,14 @@ def send_encrypted_signed_request(url, endpoint, payload_dict, agent_kem_public_
     Proteção contra replay com timestamp + nonce
     """
     try:
-        # 1. Adicionar timestamp e nonce para prevenir replay
+        
         payload_dict['_timestamp'] = int(time.time())
         payload_dict['_nonce'] = base64.b64encode(os.urandom(16)).decode('utf-8')
         
         payload_json = json.dumps(payload_dict)
         payload_bytes = payload_json.encode('utf-8')
         
-        # 2. Criptografar o payload com ML-KEM (Envelope Encryption)
+
         encrypted_payload = payload_bytes
         kem_ciphertext = None
         
@@ -119,19 +117,17 @@ def send_encrypted_signed_request(url, endpoint, payload_dict, agent_kem_public_
                 with oqs.KeyEncapsulation(KEM_ALGO) as kem_client:
                     kem_ciphertext, shared_secret = kem_client.encap_secret(agent_kem_public_key)
                     
-                    # Usar shared_secret para criptografar o payload (AES-GCM simulado com XOR simplificado)
-                    # Em produção, usar AES-GCM adequado
                     from hashlib import sha256
                     key = sha256(shared_secret).digest()
                     encrypted_payload = bytes(a ^ b for a, b in zip(payload_bytes, (key * ((len(payload_bytes) // 32) + 1))[:len(payload_bytes)]))
             except Exception as e:
                 logger.warning(f"Falha na criptografia KEM: {e}. Enviando sem criptografia.")
         
-        # 3. Assinar o payload (criptografado ou não)
+       
         with oqs.Signature(AUTH_ALGO, secret_key=SIGNING_KEY) as signer:
             signature = signer.sign(encrypted_payload)
         
-        # 4. Preparar headers
+        
         headers = {
             'Content-Type': 'application/octet-stream',
             'X-PQC-Signature': base64.b64encode(signature).decode('utf-8'),
@@ -141,7 +137,7 @@ def send_encrypted_signed_request(url, endpoint, payload_dict, agent_kem_public_
         if kem_ciphertext:
             headers['X-KEM-Ciphertext'] = base64.b64encode(kem_ciphertext).decode('utf-8')
         
-        # 5. Enviar
+        
         resp = requests.post(f"{url}/{endpoint}", data=encrypted_payload, headers=headers, timeout=HTTP_TIMEOUT)
         
         if resp.status_code == 200:
@@ -157,7 +153,7 @@ def send_encrypted_signed_request(url, endpoint, payload_dict, agent_kem_public_
         logger.error(f"Excecao de rede: {e}")
         return False, str(e)
 
-# Cache de chaves públicas dos agentes (para criptografia de envelope)
+
 AGENT_PUBLIC_KEYS = {}
 
 def register_agent_public_key(url):
@@ -178,10 +174,10 @@ def register_agent_public_key(url):
     AGENT_PUBLIC_KEYS[url] = None
     return False
 
-# --- FUNÇÕES DE ORQUESTRAÇÃO (com criptografia) ---
+
 
 def push_key(url, owner, key_bytes):
-    # Registrar chave pública do agente se ainda não foi feito
+    
     if url not in AGENT_PUBLIC_KEYS:
         register_agent_public_key(url)
     
@@ -208,14 +204,14 @@ def initiate_tunnel(url, child_name):
         return True
     return False
 
-# --- FUNÇÕES DE GERAÇÃO HÍBRIDA DE CHAVES (PQC + QKD) ---
+
 
 def generate_pqc_key(algo=PQC_ALGO):
     """Gera um segredo usando PQC (ML-KEM-768)"""
     try:
         if not HAS_OQS:
-            logger.warning("liboqs não disponível. Usando RNG clássico.")
-            return os.urandom(32)
+            logger.critical("ERRO CRÍTICO: liboqs não disponível. Impossível gerar chaves PQC.")
+            exit(1)
         
         start = time.time()
         with oqs.KeyEncapsulation(algo) as kem:
@@ -223,75 +219,106 @@ def generate_pqc_key(algo=PQC_ALGO):
             ct, shared_secret = kem.encap_secret(pk)
         elapsed = (time.time() - start) * 1000
         
-        logger.debug(f"  PQC {algo} KeyGen: {elapsed:.2f}ms")
+        logger.debug(f"  PQC {algo} gerado: {elapsed:.2f}ms")
         return shared_secret[:32]  # Truncar para 256 bits
     except Exception as e:
-        logger.error(f"Erro no PQC: {e}. Usando RNG.")
-        return os.urandom(32)
+        logger.critical(f"ERRO CRÍTICO no PQC: {e}. Sistema não pode operar sem PQC.")
+        exit(1)
 
 def request_qkd_key(kme_url, peer_sae_id, cert_tuple=None, size=32):
-    """Requisita uma chave QKD do KME (Key Management Entity)"""
+    """
+    Requisita uma chave QKD do KME (Key Management Entity).
+    Levanta exceção se falhar - sem fallback para RNG.
+    """
     try:
         if not os.path.exists(CERT_DIR):
-            logger.warning(f"Diretório de certificados {CERT_DIR} não encontrado. Usando RNG.")
-            return os.urandom(size)
+            logger.warning(f"Diretório de certificados {CERT_DIR} não encontrado.")
+            raise FileNotFoundError(f"Certificados não encontrados em {CERT_DIR}")
         
-        # Criar cliente QuKayDee
-        client = QuKayDeeClient(kme_url, cert_tuple[0], cert_tuple[1], CA_CERT) if cert_tuple else None
+        if not cert_tuple:
+            raise ValueError("Certificados não configurados para QuKayDee")
         
-        if not client:
-            logger.debug("QuKayDee não configurado. Usando RNG.")
-            return os.urandom(size)
+        client = QuKayDeeClient(kme_url, cert_tuple[0], cert_tuple[1], CA_CERT)
         
         start = time.time()
         batch = client.get_enc_key(peer_sae_id, number=1)
         elapsed = (time.time() - start) * 1000
         
         qkd_key = batch[0]['key'][:size]
-        logger.debug(f"  QKD {peer_sae_id}: {elapsed:.2f}ms")
+        logger.info(f"  QKD {peer_sae_id}: {elapsed:.2f}ms")
         return qkd_key
         
     except Exception as e:
-        logger.warning(f"QKD falhou ({e}). Usando RNG.")
-        return os.urandom(size)
+        logger.error(f"ERRO ao obter QKD: {e}")
+        raise
 
-def generate_hybrid_key(conn_name, node1, node2):
+def generate_hybrid_key(conn_name, node1, node2, kme_urls, certs):
     """
-    Gera uma chave híbrida combinando PQC + QKD usando HKDF
-    Fallback para RNG clássico se qualquer componente falhar
-    """
-    if not USE_HYBRID_MODE or not HAS_HYBRID:
-        logger.debug(f"[{conn_name}] Modo Híbrido desabilitado. Usando RNG clássico.")
-        return os.urandom(32)
+    Gera uma chave híbrida combinando QKD + PQC usando HKDF.
     
+    Hierarquia:
+    1. Tenta obter QKD do KME (obrigatório)
+    2. Se QKD falhar, usa PQC puro (nunca RNG clássico)
+    
+    Args:
+        conn_name: Nome da conexão (alice-bob, carol-dave)
+        node1, node2: Nomes dos nós
+        kme_urls: Dicionário com URLs dos KMEs {node: url}
+        certs: Dicionário com certificados {node: (cert_path, key_path)}
+    """
     try:
-        logger.debug(f"[{conn_name}] Gerando chave híbrida...")
+        logger.info(f"[{conn_name}] Gerando chave híbrida (QKD+PQC)...")
         
-        # 1. Gerar chave PQC
+      
+        qkd_key = None
+        try:
+            kme_url = kme_urls.get(node1)
+            cert = certs.get(node1)
+            if kme_url and cert:
+                qkd_key = request_qkd_key(kme_url, node2, cert)
+                logger.info(f"  [QKD] Chave obtida com sucesso")
+        except Exception as e:
+            logger.warning(f"  [QKD] Falha: {e}. Usando fallback PQC puro.")
+            qkd_key = None
+        
+       
         pqc_secret = generate_pqc_key(PQC_ALGO)
+        logger.info(f"  [PQC] {PQC_ALGO} gerado")
         
-        # 2. Requisitar chave QKD (simulado com RNG se indisponível)
-        qkd_key = os.urandom(32)  # Fallback para RNG
+       
+        if qkd_key:
+            final_key = mix_keys(pqc_secret, qkd_key)
+            logger.info(f"  ✓ Chave Final: PQC({PQC_ALGO}) + QKD + HKDF-SHA256")
+        else:
+            final_key = mix_keys(pqc_secret, b'\x00' * 32)  # Mix com zero para manter HKDF
+            logger.warning(f"  ✓ Chave Final: PQC({PQC_ALGO}) PURO (QKD indisponível)")
         
-        # 3. Misturar usando HKDF-SHA256
-        final_key = mix_keys(pqc_secret, qkd_key)
-        
-        logger.info(f"  ✓ Chave híbrida gerada: PQC({PQC_ALGO}) + QKD + HKDF-SHA256")
         return final_key
         
     except Exception as e:
-        logger.warning(f"Erro ao gerar chave híbrida: {e}. Usando RNG.")
-        return os.urandom(32)
+        logger.critical(f"ERRO ao gerar chave híbrida: {e}")
+        exit(1)
 
 def main():
     logger.info(f"SDN Seguro Multi-Nós Iniciado (Autenticado via {AUTH_ALGO})")
     logger.info(f"Gerenciando {len(CONNECTIONS)} conexões: {list(CONNECTIONS.keys())}")
+    logger.info(f"MODO: QKD + PQC Obrigatório (PQC:{PQC_ALGO})")
     
-    # Exibir modo de operação
-    if USE_HYBRID_MODE and HAS_HYBRID:
-        logger.info(f"MODO: Híbrido (PQC:{PQC_ALGO} + QKD + HKDF-SHA256)")
-    else:
-        logger.info("MODO: Clássico (RNG-256bits)")
+    
+    kme_urls = {
+        'alice': URL_KME_ALICE,
+        'bob': URL_KME_BOB,
+        'carol': URL_KME_CAROL,
+        'dave': URL_KME_DAVE
+    }
+    
+   
+    certs = {
+        'alice': (f"{CERT_DIR}/sae-1.crt", f"{CERT_DIR}/sae-1.key"),
+        'bob': (f"{CERT_DIR}/sae-2.crt", f"{CERT_DIR}/sae-2.key"),
+        'carol': (f"{CERT_DIR}/sae-3.crt", f"{CERT_DIR}/sae-3.key"),
+        'dave': (f"{CERT_DIR}/sae-4.crt", f"{CERT_DIR}/sae-4.key")
+    }
     
     cycle = 0
     
@@ -310,8 +337,8 @@ def main():
             
             logger.info(f"\n[{conn_name}] Processando conexão {node1} <-> {node2}...")
             
-            # Gerar chave híbrida (PQC + QKD)
-            final_key = generate_hybrid_key(conn_name, node1, node2)
+            # Gerar chave híbrida (QKD + PQC com fallback)
+            final_key = generate_hybrid_key(conn_name, node1, node2, kme_urls, certs)
             
             # Injetar chaves em ambos os nós
             logger.info(f"  -> Injetando chave em {node1} (para {node2})")

@@ -1,27 +1,27 @@
-# Quantum-Resistant VPN with Hybrid Key Management
+# VPN Resistente a Computadores Quânticos com Gerenciamento Híbrido de Chaves
 
-## Overview
+## Visão Geral
 
-This project implements a proof-of-concept Software-Defined Networking (SDN) orchestrated Virtual Private Network (VPN) infrastructure with post-quantum cryptographic algorithms and hybrid key management. The system combines Quantum Key Distribution (QKD) with Post-Quantum Cryptography (PQC) to provide quantum-resistant security for IPsec tunnels.
+Este projeto implementa um protótipo de prova de conceito de infraestrutura de Rede Privada Virtual (VPN) orquestrada por Redes Definidas por Software (SDN) com algoritmos criptográficos pós-quânticos e gerenciamento híbrido de chaves. O sistema combina Distribuição de Chaves Quânticas (QKD) com Criptografia Pós-Quântica (PQC) para fornecer segurança resistente a computadores quânticos para túneis IPsec.
 
-## Architecture
+## Arquitetura
 
-### System Components
+### Componentes do Sistema
 
-1. **VPN Nodes**: Four strongSwan-based IPsec gateways (Alice, Bob, Carol, Dave)
-2. **SDN Controller**: Centralized orchestrator managing key distribution and tunnel lifecycle
-3. **Hybrid Key Generator**: Combines QKD and PQC secrets using HKDF-SHA256
-4. **Control Plane**: Secure communication channel with PQC authentication and encryption
+1. **Nós VPN**: Quatro gateways IPsec baseados em strongSwan (Alice, Bob, Carol, Dave)
+2. **Controlador SDN**: Orquestrador centralizado gerenciando distribuição de chaves e ciclo de vida de túneis
+3. **Gerador de Chaves Híbrido**: Combina segredos QKD e PQC usando HKDF-SHA256
+4. **Plano de Controle**: Canal de comunicação seguro com autenticação e encriptação PQC
 
-### Network Topology
+### Topologia de Rede
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 SDN Controller                      │
-│  (Orchestrator - 10.100.1.40)                      │
-│  - ML-DSA-65 Authentication                         │
-│  - ML-KEM-768 Envelope Encryption                  │
-│  - Hybrid Key Generation (PQC + QKD)               │
+│              Controlador SDN                        │
+│  (Orquestrador - 10.100.1.40)                      │
+│  - Autenticação ML-DSA-65                           │
+│  - Encriptação de Envelope ML-KEM-768              │
+│  - Geração de Chaves Híbridas (PQC + QKD)          │
 └────────────┬────────────────────────┬───────────────┘
              │                        │
     ┌────────┴────────┐      ┌───────┴────────┐
@@ -30,126 +30,126 @@ This project implements a proof-of-concept Software-Defined Networking (SDN) orc
 │ Alice  │◄────►│  Bob   │  │ Carol  │◄►│  Dave   │
 │ .1.10  │      │  .1.11 │  │ .1.12  │  │  .1.13  │
 └────────┘      └────────┘  └────────┘  └─────────┘
-   VPN Tunnel       VPN Tunnel
+  Túnel VPN     Túnel VPN
 ```
 
-### Connection Pairs
+### Pares de Conexão
 
-- **alice-bob**: Bidirectional IPsec tunnel
-- **carol-dave**: Bidirectional IPsec tunnel
+- **alice-bob**: Túnel IPsec bidirecional
+- **carol-dave**: Túnel IPsec bidirecional
 
-## Security Features
+## Recursos de Segurança
 
-### Post-Quantum Cryptography
+### Criptografia Pós-Quântica
 
-**Signature Algorithm (Authentication)**
-- ML-DSA-65 (CRYSTALS-Dilithium) for digital signatures
-- Provides integrity and authenticity of control plane messages
+**Algoritmo de Assinatura (Autenticação)**
+- ML-DSA-65 (CRYSTALS-Dilithium) para assinaturas digitais
+- Fornece integridade e autenticidade de mensagens do plano de controle
 
-**Key Encapsulation Mechanism (Confidentiality)**
-- ML-KEM-768 (CRYSTALS-Kyber) for key encapsulation
-- Envelope encryption of control plane payloads
+**Mecanismo de Encapsulamento de Chaves (Confidencialidade)**
+- ML-KEM-768 (CRYSTALS-Kyber) para encapsulamento de chaves
+- Encriptação de envelope de cargas do plano de controle
 
-### Hybrid Key Generation
+### Geração de Chaves Híbridas
 
-The system implements a hybrid approach combining:
+O sistema implementa uma abordagem híbrida combinando:
 
-1. **PQC Component**: ML-KEM-768 shared secret
-2. **QKD Component**: Quantum-safe keys from QuKayDee KME 
-3. **Key Derivation**: HKDF-SHA256 mixing both components
+1. **Componente PQC**: Segredo compartilhado ML-KEM-768
+2. **Componente QKD**: Chaves seguras contra quântica do QuKayDee KME 
+3. **Derivação de Chaves**: HKDF-SHA256 misturando ambos os componentes
 
 ```
-PQC_Secret (ML-KEM) + QKD_Key → HKDF-SHA256 → Final_IPsec_Key
+Segredo_PQC (ML-KEM) + Chave_QKD → HKDF-SHA256 → Chave_IPsec_Final
 ```
 
-### Control Plane Security
+### Segurança do Plano de Controle
 
-**Multi-Layer Protection**
+**Proteção Multicamada**
 
-1. **Envelope Encryption**: Control messages encrypted with ML-KEM-768
-2. **Digital Signature**: All messages signed with ML-DSA-65
-3. **Replay Protection**: Timestamp + nonce validation
-4. **Message Expiry**: 30-second validity window
+1. **Encriptação de Envelope**: Mensagens de controle encriptadas com ML-KEM-768
+2. **Assinatura Digital**: Todas as mensagens assinadas com ML-DSA-65
+3. **Proteção contra Reprodução**: Validação de timestamp + nonce
+4. **Expiração de Mensagem**: Janela de validade de 30 segundos
 
-**Security Flow**
+**Fluxo de Segurança**
 ```
-[Controller]
-    ↓ Generate payload + timestamp + nonce
-    ↓ Encrypt with ML-KEM-768 (agent's public key)
-    ↓ Sign with ML-DSA-65
-    ↓ Send via HTTP
+[Controlador]
+    ↓ Gerar carga útil + timestamp + nonce
+    ↓ Encriptar com ML-KEM-768 (chave pública do agente)
+    ↓ Assinar com ML-DSA-65
+    ↓ Enviar via HTTP
 
-[Agent]
-    ↓ Verify ML-DSA-65 signature
-    ↓ Decrypt with ML-KEM-768 (agent's private key)
-    ↓ Validate timestamp (anti-replay)
-    ↓ Check nonce uniqueness (anti-replay)
-    ↓ Execute command
+[Agente]
+    ↓ Verificar assinatura ML-DSA-65
+    ↓ Desencriptar com ML-KEM-768 (chave privada do agente)
+    ↓ Validar timestamp (anti-reprodução)
+    ↓ Verificar unicidade de nonce (anti-reprodução)
+    ↓ Executar comando
 ```
 
-## Technologies
+## Tecnologias
 
-### Core Components
+### Componentes Principais
 
-- **strongSwan 5.9.x**: IKEv2/IPsec VPN daemon
-- **liboqs 0.10.x**: Open Quantum Safe cryptographic library
-- **Python 3.10+**: Orchestration and agents
-- **Flask**: REST API for VPN agents
-- **VICI Protocol**: strongSwan control interface
+- **strongSwan 5.9.x**: Daemon de VPN IKEv2/IPsec
+- **liboqs 0.10.x**: Biblioteca criptográfica Open Quantum Safe
+- **Python 3.10+**: Orquestração e agentes
+- **Flask**: API REST para agentes VPN
+- **Protocolo VICI**: Interface de controle strongSwan
 
-### Cryptographic Algorithms
+### Algoritmos Criptográficos
 
-| Purpose | Algorithm | Security Level |
-|---------|-----------|----------------|
-| Signature | ML-DSA-65 | NIST Level 3 |
-| KEM | ML-KEM-768 | NIST Level 3 |
-| KDF | HKDF-SHA256 | Classical |
-| IPsec ESP | AES-256-GCM | 256-bit (128-bit quantum) |
-| IPsec IKE | AES-256-SHA256 | 256-bit (128-bit quantum) |
+| Propósito | Algoritmo | Nível de Segurança |
+|-----------|-----------|-------------------|
+| Assinatura | ML-DSA-65 | NIST Nível 3 |
+| KEM | ML-KEM-768 | NIST Nível 3 |
+| KDF | HKDF-SHA256 | Clássico |
+| IPsec ESP | AES-256-GCM | 256-bit (128-bit quântico) |
+| IPsec IKE | AES-256-SHA256 | 256-bit (128-bit quântico) |
 
-### Optional QKD Integration
+### Integração QKD Opcional
 
-- **QuKayDee API**: ETSI QKD API compliant
-- **TLS Client Authentication**: Mutual TLS with certificates
-- **Key Size**: 256-bit quantum keys
+- **API QuKayDee**: Compatível com ETSI QKD API
+- **Autenticação de Cliente TLS**: TLS mútuo com certificados
+- **Tamanho de Chave**: Chaves quânticas de 256-bit
 
-## Installation
+## Instalação
 
-### Prerequisites
+### Pré-requisitos
 
 ```bash
-# System packages
+# Pacotes do sistema
 apt-get update
 apt-get install -y strongswan strongswan-swanctl libcharon-extra-plugins \
                    iproute2 iputils-ping python3 python3-pip git cmake \
                    gcc libssl-dev ninja-build
 
-# Docker and Docker Compose
+# Docker e Docker Compose
 docker --version  # >= 20.10
 docker-compose --version  # >= 1.29
 ```
 
-### Build and Deploy
+### Compilar e Implantar
 
 ```bash
-# Clone repository
+# Clonar repositório
 git clone <repository-url>
 cd quantum_vpn
 
-# Generate authentication keys (ML-DSA-65)
+# Gerar chaves de autenticação (ML-DSA-65)
 python3 scripts/generate_auth_keys.py
 
-# Build Docker images
+# Compilar imagens Docker
 docker-compose build
 
-# Start infrastructure
+# Iniciar infraestrutura
 docker-compose up -d
 
-# Verify containers
+# Verificar contêineres
 docker-compose ps
 ```
 
-### Expected Output
+### Saída Esperada
 
 ```
 NAME            STATUS          PORTS
@@ -160,94 +160,94 @@ dave            running
 orchestrator    running
 ```
 
-## Usage
+## Uso
 
-### Starting the System
+### Iniciando o Sistema
 
-The orchestrator automatically starts and manages VPN tunnels:
+O orquestrador inicia automaticamente e gerencia túneis VPN:
 
 ```bash
-# View orchestrator logs
+# Ver logs do orquestrador
 docker logs -f orchestrator
 
-# View specific agent logs
+# Ver logs de um agente específico
 docker logs -f alice
 docker logs -f bob
 ```
 
-### Testing Connectivity
+### Testando Conectividade
 
 ```bash
-# Test Alice-Bob tunnel
+# Testar túnel Alice-Bob
 docker exec alice ping -c 3 10.100.1.11
 
-# Test Carol-Dave tunnel
+# Testar túnel Carol-Dave
 docker exec carol ping -c 3 10.100.1.13
 
-# Inspect IPsec Security Associations
+# Inspecionar Associações de Segurança IPsec
 docker exec alice swanctl --list-sas
 docker exec carol swanctl --list-sas
 ```
 
-### Manual Key Rotation
+### Rotação Manual de Chaves
 
-The orchestrator performs automatic key rotation every 10 seconds. To trigger manually:
+O orquestrador realiza rotação automática de chaves a cada 10 segundos. Para disparar manualmente:
 
 ```bash
 docker restart orchestrator
 ```
 
-### Monitoring
+### Monitoramento
 
 ```bash
-# Check agent health
+# Verificar saúde do agente
 curl http://10.100.1.10:5000/health  # Alice
 curl http://10.100.1.12:5000/health  # Carol
 
-# View ESP traffic
+# Ver tráfego ESP
 docker exec alice tcpdump -i eth0 'esp'
 ```
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
 quantum_vpn/
 ├── alice/
-│   └── swanctl.conf          # Alice's strongSwan configuration
+│   └── swanctl.conf          # Configuração strongSwan de Alice
 ├── bob/
-│   └── swanctl.conf          # Bob's strongSwan configuration
+│   └── swanctl.conf          # Configuração strongSwan de Bob
 ├── carol/
-│   └── swanctl.conf          # Carol's strongSwan configuration
+│   └── swanctl.conf          # Configuração strongSwan de Carol
 ├── dave/
-│   └── swanctl.conf          # Dave's strongSwan configuration
+│   └── swanctl.conf          # Configuração strongSwan de Dave
 ├── scripts/
-│   ├── sdn_controller_multi_node.py  # Main SDN orchestrator
-│   ├── vpn_agent.py          # Flask agent for each VPN node
-│   ├── hybrid_key_gen.py     # Hybrid key mixing (HKDF)
-│   ├── qukaydee_client.py    # QKD API client (optional)
-│   ├── generate_auth_keys.py # ML-DSA-65 keypair generator
-│   ├── entrypoint.sh         # Container initialization script
-│   └── orchestrator_auth.key # Controller private key
-│       orchestrator_auth.pub # Controller public key
-├── Dockerfile                 # Container image definition
-├── docker-compose.yml        # Multi-container orchestration
-└── README.md                 # This file
+│   ├── sdn_controller_multi_node.py  # Orquestrador SDN principal
+│   ├── vpn_agent.py          # Agente Flask para cada nó VPN
+│   ├── hybrid_key_gen.py     # Mistura de chaves híbridas (HKDF)
+│   ├── qukaydee_client.py    # Cliente QKD API (opcional)
+│   ├── generate_auth_keys.py # Gerador de par de chaves ML-DSA-65
+│   ├── entrypoint.sh         # Script de inicialização de contêiner
+│   └── orchestrator_auth.key # Chave privada do controlador
+│       orchestrator_auth.pub # Chave pública do controlador
+├── Dockerfile                 # Definição de imagem de contêiner
+├── docker-compose.yml        # Orquestração de múltiplos contêineres
+└── README.md                 # Este arquivo
 ```
 
-## Configuration
+## Configuração
 
-### Hybrid Mode
+### Modo Híbrido
 
-Edit `scripts/sdn_controller_multi_node.py`:
+Editar `scripts/sdn_controller_multi_node.py`:
 
 ```python
-USE_HYBRID_MODE = True      # Enable PQC+QKD hybrid keys
-PQC_ALGO = "ML-KEM-768"     # Post-quantum KEM algorithm
+USE_HYBRID_MODE = True      # Habilitar chaves híbridas PQC+QKD
+PQC_ALGO = "ML-KEM-768"     # Algoritmo KEM pós-quântico
 ```
 
-### QKD Integration
+### Integração QKD
 
-Configure QuKayDee credentials in `scripts/sdn_controller_multi_node.py`:
+Configurar credenciais QuKayDee em `scripts/sdn_controller_multi_node.py`:
 
 ```python
 ACCOUNT_ID = "2992"
@@ -255,14 +255,14 @@ URL_KME_ALICE = f"https://kme-1.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
 CERT_DIR = "/scripts/certs"
 ```
 
-Place certificates in `scripts/certs/`:
+Colocar certificados em `scripts/certs/`:
 - `sae-1.crt`, `sae-1.key` (Alice)
 - `sae-2.crt`, `sae-2.key` (Bob)
 - `account-{ACCOUNT_ID}-server-ca-qukaydee-com.crt`
 
-### Network Settings
+### Configurações de Rede
 
-Modify `docker-compose.yml` to adjust IP addressing:
+Modificar `docker-compose.yml` para ajustar endereçamento IP:
 
 ```yaml
 networks:
@@ -272,104 +272,104 @@ networks:
         - subnet: 10.100.1.0/24
 ```
 
-## Threat Model
+## Modelo de Ameaças
 
-### Mitigated Threats
+### Ameaças Mitigadas
 
-1. **Quantum Computer Attacks**: PQC algorithms resist Shor's algorithm
-2. **Man-in-the-Middle**: ML-DSA-65 signatures provide authentication
-3. **Eavesdropping**: ML-KEM-768 encryption protects control plane
-4. **Replay Attacks**: Timestamp and nonce validation
-5. **Message Tampering**: Cryptographic signatures detect modifications
+1. **Ataques de Computador Quântico**: Algoritmos PQC resistem ao algoritmo de Shor
+2. **Man-in-the-Middle**: Assinaturas ML-DSA-65 fornecem autenticação
+3. **Espionagem**: Encriptação ML-KEM-768 protege o plano de controle
+4. **Ataques de Reprodução**: Validação de timestamp e nonce
+5. **Alteração de Mensagem**: Assinaturas criptográficas detectam modificações
 
-### Residual Risks
+### Riscos Residuais
 
-- Side-channel attacks on cryptographic implementations
-- Denial-of-Service through resource exhaustion
-- Compromise of SDN controller (single point of failure)
+- Ataques de canal lateral em implementações criptográficas
+- Negação de Serviço através de esgotamento de recursos
+- Comprometimento do controlador SDN (ponto único de falha)
 
-## Performance Considerations
+## Considerações de Desempenho
 
-### Cryptographic Overhead
+### Overhead Criptográfico
 
-| Operation | Typical Latency |
-|-----------|----------------|
+| Operação | Latência Típica |
+|----------|------------------|
 | ML-DSA-65 Sign | 1-2 ms |
 | ML-DSA-65 Verify | 1-2 ms |
 | ML-KEM-768 KeyGen | 0.5-1 ms |
 | ML-KEM-768 Encap | 0.5-1 ms |
 | ML-KEM-768 Decap | 0.5-1 ms |
-| IPsec Rekey | 50-200 ms |
+| Rekeying IPsec | 50-200 ms |
 
-### Scalability
+### Escalabilidade
 
-- Current implementation: 2 concurrent tunnels
-- Theoretical capacity: Hundreds of tunnels per controller
-- Bottleneck: VICI socket operations on VPN nodes
+- Implementação atual: 2 túneis simultâneos
+- Capacidade teórica: Centenas de túneis por controlador
+- Gargalo: Operações de socket VICI em nós VPN
 
 ## Troubleshooting
 
-### Container Fails to Start
+### Contêiner Falha ao Iniciar
 
 ```bash
-# Check logs
+# Verificar logs
 docker logs alice
 
-# Common issues
-# 1. Insufficient privileges (requires NET_ADMIN capability)
-# 2. Port conflicts
-# 3. Missing liboqs library
+# Problemas comuns
+# 1. Privilégios insuficientes (requer capacidade NET_ADMIN)
+# 2. Conflitos de porta
+# 3. Biblioteca liboqs ausente
 ```
 
-### Orchestrator Connection Errors
+### Erros de Conexão do Orquestrador
 
 ```bash
-# Verify network connectivity
+# Verificar conectividade de rede
 docker exec orchestrator ping 10.100.1.10
 
-# Check agent is listening
+# Verificar se agente está ouvindo
 docker exec alice netstat -tlnp | grep 5000
 
-# Test agent health endpoint
+# Testar endpoint de saúde do agente
 docker exec orchestrator curl http://10.100.1.10:5000/health
 ```
 
-### IPsec Tunnel Not Established
+### Túnel IPsec Não Estabelecido
 
 ```bash
-# Check charon daemon
+# Verificar daemon charon
 docker exec alice swanctl --list-conns
 docker exec alice swanctl --list-sas
 
-# View strongSwan logs
+# Ver logs strongSwan
 docker exec alice tail -f /var/log/charon.log
 
-# Reload configuration
+# Recarregar configuração
 docker exec alice swanctl --load-all
 ```
 
-## Development
+## Desenvolvimento
 
-### Running Tests
+### Executando Testes
 
 ```bash
-# Unit tests for hybrid key generation
+# Testes unitários para geração de chave híbrida
 python3 -m pytest scripts/test_hybrid_key_gen.py
 
-# Integration test
+# Teste de integração
 docker exec orchestrator python3 /scripts/sdn_controller_multi_node.py
 ```
 
-### Adding New VPN Nodes
+### Adicionando Novos Nós VPN
 
-1. Create configuration directory: `eve/swanctl.conf`
-2. Add service in `docker-compose.yml`
-3. Update `CONNECTIONS` dict in `sdn_controller_multi_node.py`
-4. Rebuild and restart: `docker-compose up -d --build`
+1. Criar diretório de configuração: `eve/swanctl.conf`
+2. Adicionar serviço em `docker-compose.yml`
+3. Atualizar dicionário `CONNECTIONS` em `sdn_controller_multi_node.py`
+4. Recompilar e reiniciar: `docker-compose up -d --build`
 
-## References
+## Referências
 
-### Standards and Specifications
+### Padrões e Especificações
 
 - NIST FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard
 - NIST FIPS 204: Module-Lattice-Based Digital Signature Standard
@@ -377,21 +377,21 @@ docker exec orchestrator python3 /scripts/sdn_controller_multi_node.py
 - RFC 4301: Security Architecture for the Internet Protocol
 - ETSI GS QKD 014: Quantum Key Distribution (QKD) Protocol and data format
 
-### Libraries and Projects
+### Bibliotecas e Projetos
 
 - Open Quantum Safe: https://openquantumsafe.org/
 - strongSwan: https://www.strongswan.org/
 - liboqs: https://github.com/open-quantum-safe/liboqs
 - liboqs-python: https://github.com/open-quantum-safe/liboqs-python
 
-## License
+## Licença
 
-This is a research prototype for academic and proof-of-concept purposes. Not intended for production use.
+Este é um protótipo de pesquisa para fins acadêmicos e prova de conceito. Não destinado a uso em produção.
 
-## Contributors
+## Contribuidores
 
-Research project for SBRC 2026 demonstration.
+Projeto de pesquisa para demonstração SBRC 2026.
 
-## Acknowledgments
+## Agradecimentos
 
-This work utilizes the Open Quantum Safe project's liboqs library and strongSwan's flexible IPsec implementation.
+Este trabalho utiliza a biblioteca liboqs do projeto Open Quantum Safe e a implementação flexível de IPsec do strongSwan.

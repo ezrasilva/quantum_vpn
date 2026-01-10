@@ -21,11 +21,11 @@ MAX_MESSAGE_AGE_SECONDS = 30
 logging.basicConfig(level=logging.INFO, format='[AGENT] %(asctime)s - %(message)s')
 logger = logging.getLogger("VPN-Agent")
 
-# Cache de nonces usados (anti-replay)
+
 USED_NONCES = set()
 MAX_NONCE_CACHE = 10000
 
-# --- CARREGAR CHAVE PÚBLICA DA AUTORIDADE ---
+
 try:
     with open(PUB_KEY_PATH, "rb") as f:
         ORCHESTRATOR_PUB_KEY = f.read()
@@ -34,7 +34,7 @@ except Exception as e:
     logger.critical(f"ERRO FATAL: Nao foi possivel ler a chave publica: {e}")
     sys.exit(1)
 
-# --- GERAR PAR DE CHAVES KEM PARA DESCRIPTOGRAFIA ---
+
 try:
     kem = oqs.KeyEncapsulation(KEM_ALGO)
     KEM_PUBLIC_KEY = kem.generate_keypair()
@@ -67,7 +67,7 @@ def decrypt_payload(encrypted_bytes, kem_ciphertext_b64):
         with oqs.KeyEncapsulation(KEM_ALGO, secret_key=KEM_SECRET_KEY) as kem_server:
             shared_secret = kem_server.decap_secret(kem_ciphertext)
             
-            # Descriptografar (XOR reverso)
+            
             key = sha256(shared_secret).digest()
             decrypted = bytes(a ^ b for a, b in zip(encrypted_bytes, (key * ((len(encrypted_bytes) // 32) + 1))[:len(encrypted_bytes)]))
             return decrypted
@@ -85,21 +85,21 @@ def check_replay_protection(payload_dict):
             logger.warning("Mensagem sem timestamp/nonce. Possível ataque de replay.")
             return False
         
-        # Verificar idade da mensagem
+        
         age = int(time.time()) - timestamp
         if age > MAX_MESSAGE_AGE_SECONDS or age < -5:  # -5 para tolerar pequeno clock skew
             logger.warning(f"Mensagem expirada ou com timestamp futuro. Idade: {age}s")
             return False
         
-        # Verificar nonce duplicado
+    
         if nonce in USED_NONCES:
             logger.error(f"REPLAY ATTACK DETECTADO! Nonce já foi usado: {nonce[:16]}...")
             return False
         
-        # Adicionar nonce ao cache
+      
         USED_NONCES.add(nonce)
         
-        # Limpar cache se crescer muito
+       
         if len(USED_NONCES) > MAX_NONCE_CACHE:
             USED_NONCES.clear()
         
@@ -108,10 +108,10 @@ def check_replay_protection(payload_dict):
         logger.error(f"Erro na verificação de replay: {e}")
         return False
 
-# --- MIDDLEWARE DE AUTENTICAÇÃO E DESCRIPTOGRAFIA ---
+
 @app.before_request
 def authenticate_and_decrypt():
-    # Ignora validação para rotas públicas
+   
     if request.path in ['/health', '/public-key']:
         return
     
@@ -156,7 +156,7 @@ def authenticate_and_decrypt():
         logger.error(f"Erro no middleware de segurança: {e}")
         return jsonify({"error": "Erro na validação de segurança"}), 500
 
-# --- FUNÇÕES VICI (Mantivemos a lógica, removemos a repetição) ---
+
 def get_vici_session():
     for i in range(5): 
         try:
@@ -172,7 +172,7 @@ def initialize_vpn():
     subprocess.run(["swanctl", "--load-all"], capture_output=True)
     return True
 
-# --- ROTAS (Agora protegidas pelo @before_request) ---
+
 
 @app.route('/public-key', methods=['GET'])
 def get_public_key():
@@ -187,12 +187,12 @@ def get_public_key():
 
 @app.route('/inject-key', methods=['POST'])
 def inject_key():
-    data = request.decrypted_json  # Usar payload descriptografado
+    data = request.decrypted_json  
     try:
         session = get_vici_session()
         if not session: return jsonify({"error": "VICI off"}), 500
         
-        # Limpa chave antiga e carrega nova
+       
         try: session.unload_shared({'id': data['key_id']})
         except: pass
         
