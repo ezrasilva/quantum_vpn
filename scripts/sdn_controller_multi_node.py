@@ -17,35 +17,26 @@ except ImportError:
     HAS_OQS = False
     print("ERRO CRITICO: liboqs nao encontrado. A autenticacao vai falhar.")
 
-# Importar módulos híbridos
-try:
-    from hybrid_key_gen import mix_keys, hkdf_extract, hkdf_expand
-    from qukaydee_client import QuKayDeeClient
-    HAS_HYBRID = True
-except ImportError:
-    HAS_HYBRID = False
-    logger_placeholder = logging.getLogger("SDN-Multi")
-    logger_placeholder.warning("Módulos híbridos (QKD/PQC) não disponíveis. Usando RNG clássico.")
+
+from hybrid_key_gen import mix_keys, hkdf_extract, hkdf_expand
+from qukaydee_client import QuKayDeeClient
 
 # --- CONFIGURAÇÕES ---
-AGENT_ALICE_URL = "http://10.100.1.10:5000"
-AGENT_BOB_URL   = "http://10.100.1.11:5000"
-AGENT_CAROL_URL = "http://10.100.1.12:5000"
-AGENT_DAVE_URL  = "http://10.100.1.13:5000"
+AGENT_ALICE_URL = "http://192.168.100.10:5000"
+AGENT_BOB_URL   = "http://192.168.100.11:5000"
+AGENT_CAROL_URL = "http://192.168.100.12:5000"
+AGENT_DAVE_URL  = "http://192.168.100.13:5000"
 
 AUTH_ALGO = "ML-DSA-65"
 PRIV_KEY_PATH = "/scripts/orchestrator_auth.key"
 HTTP_TIMEOUT = 10
 
-# --- CONFIGURAÇÕES HÍBRIDAS (PQC + QKD) ---
-# QuKayDee é OBRIGATÓRIO. Fallback apenas para PQC puro (nunca RNG clássico).
-PQC_ALGO = "ML-KEM-768"  # Algoritmo PQC pós-quântico
+
+PQC_ALGO = "ML-KEM-768"  # Algoritmo PQ para chave híbrida
 KEM_ALGO = "ML-KEM-768"  # Algoritmo para criptografia de envelope
 
-# Tempo máximo de validade de uma mensagem (anti-replay)
 MAX_MESSAGE_AGE_SECONDS = 30
 
-# QuKayDee KME URLs (OBRIGATÓRIO)
 ACCOUNT_ID = "2992"
 URL_KME_ALICE = f"https://kme-1.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
 URL_KME_BOB   = f"https://kme-2.acct-{ACCOUNT_ID}.etsi-qkd-api.qukaydee.com"
@@ -84,7 +75,7 @@ except Exception as e:
     logger.error(f"Nao foi possivel carregar chave privada: {e}")
     exit(1)
 
-# Gerar par de chaves KEM para criptografia de envelope (uma vez por sessão)
+
 try:
     kem = oqs.KeyEncapsulation(KEM_ALGO)
     KEM_PUBLIC_KEY = kem.generate_keypair()
@@ -364,7 +355,7 @@ def main():
             else:
                 logger.error(f"  ✗ FALHA: Injeção de chaves rejeitada em {conn_name}")
             
-            time.sleep(1)  # Pequeno delay entre conexões
+            time.sleep(1)  
         
         logger.info(f"\n{'='*60}")
         logger.info(f"Ciclo {cycle} completo. Aguardando próximo ciclo...")

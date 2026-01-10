@@ -5,14 +5,11 @@ services:
     container_name: alice
     cap_add: [NET_ADMIN, SYS_MODULE]
     networks:
-      rede_a:
-        ipv4_address: 10.100.1.10
-      rede_b:
-        ipv4_address: 10.100.2.11
+      rede_transporte:
+        ipv4_address: 192.168.100.10
     volumes:
       - ./alice/swanctl.conf:/etc/swanctl/swanctl.conf
-      - ./scripts:/scripts  # Para acessar o vpn_agent.py
-
+      - ./scripts:/scripts
     entrypoint: ["/entrypoint.sh"]
 
   # --- VPN BOB ---
@@ -21,10 +18,8 @@ services:
     container_name: bob
     cap_add: [NET_ADMIN, SYS_MODULE]
     networks:
-      rede_a:
-        ipv4_address: 10.100.1.11
-      rede_b:
-        ipv4_address: 10.100.2.10
+      rede_transporte:
+        ipv4_address: 192.168.100.11
     volumes:
       - ./bob/swanctl.conf:/etc/swanctl/swanctl.conf
       - ./scripts:/scripts
@@ -36,10 +31,8 @@ services:
     container_name: carol
     cap_add: [NET_ADMIN, SYS_MODULE]
     networks:
-      rede_a:
-        ipv4_address: 10.100.1.12
-      rede_b:
-        ipv4_address: 10.100.2.12
+      rede_transporte:
+        ipv4_address: 192.168.100.12
     volumes:
       - ./carol/swanctl.conf:/etc/swanctl/swanctl.conf
       - ./scripts:/scripts
@@ -51,10 +44,8 @@ services:
     container_name: dave
     cap_add: [NET_ADMIN, SYS_MODULE]
     networks:
-      rede_a:
-        ipv4_address: 10.100.1.13
-      rede_b:
-        ipv4_address: 10.100.2.13
+      rede_transporte:
+        ipv4_address: 192.168.100.13
     volumes:
       - ./dave/swanctl.conf:/etc/swanctl/swanctl.conf
       - ./scripts:/scripts
@@ -67,10 +58,8 @@ services:
     networks:
       vpc_qkd:
         ipv4_address: 10.5.0.99
-      rede_a:
-        ipv4_address: 10.100.1.40
-      rede_b:
-        ipv4_address: 10.100.2.40
+      rede_transporte:
+        ipv4_address: 192.168.100.40
     volumes:
       - ./scripts:/scripts
     entrypoint: ["python3", "/scripts/sdn_controller_multi_node.py"]
@@ -82,20 +71,12 @@ networks:
     ipam:
       config:
         - subnet: 10.5.0.0/24
-  rede_a:
+  rede_transporte:
     driver: bridge
     driver_opts:
       com.docker.network.bridge.enable_icc: "true"
       com.docker.network.bridge.enable_ip_masquerade: "false"
     ipam:
       config:
-        - subnet: 10.100.1.0/24
-  rede_b:
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.enable_icc: "true"
-      com.docker.network.bridge.enable_ip_masquerade: "false"
-    ipam:
-      config:
-        - subnet: 10.100.2.0/24
+        - subnet: 192.168.100.0/24
  
